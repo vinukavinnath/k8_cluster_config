@@ -1,0 +1,178 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      evaluation_interval: 30s
+    scrape_configs:
+
+    # ===== Application Cluster Jobs ===== #  
+      - job_name: 'node-exporter-app-cluster'
+        static_configs:
+          - targets:
+            - '192.168.56.10:9100'    # app-master-node
+        metrics_path: /metrics
+        relabel_configs:
+         - target_label: cluster
+           replacement: 'application-cluster'
+      - job_name: 'kube-state-metrics-app-cluster'
+        static_configs:
+         - targets: 
+           - '192.168.56.10:32042'   # app-master-node
+        relabel_configs:
+         - target_label: cluster
+           replacement: 'application-cluster'
+
+    # ===== Monitoring Cluster Jobs ===== #
+
+      - job_name: 'node-exporter-monitoring-cluster'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          # keep the node-exporter Service
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+            regex: prometheus-node-exporter
+            action: keep
+          # keep the kube-state-metric Service
+          #- source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+          #  regex: kube-state-metrics
+          #  action: keep
+          # (optional) keep only the namespace you used
+          - source_labels: [__meta_kubernetes_namespace]
+            regex: exporters
+            action: keep
+          # (optional) copy node labels into series (handy for dashboards)
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          # add your own cluster tag for Grafana filtering
+          - target_label: cluster
+            replacement: monitoring-cluster
+        metrics_path: /metrics
+        scheme: http
+
+      - job_name: 'kube-state-metrics-monitoring-cluster'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+            regex: kube-state-metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_namespace]
+            regex: exporters
+            action: keep
+          - target_label: cluster
+            replacement: monitoring-cluster
+        metrics_path: /metrics
+        scheme: http
+      
+        # cAdvisor for Monitoring Cluster (Kubernetes Service Discovery)
+      - job_name: 'cadvisor-monitoring-cluster'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+          - target_label: cluster
+            replacement: monitoring-cluster
+
+      # ===== Monitor Prometheus Itself ===== #       
+      - job_name: 'prometheus'
+        static_configs:
+          - targets:
+            - '192.168.56.150:30122' # monitoring cluster
+        metrics_path: /metrics
+        relabel_configs:
+          - target_label: cluster
+            replacement: 'monitoring-cluster'      
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v3.4.0
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--storage.tsdb.path=/prometheus/'
+          - '--storage.tsdb.retention.time=15d'
+          - '--web.console.libraries=/etc/prometheus/console_libraries'
+          - '--web.console.templates=/etc/prometheus/consoles'
+          - '--web.enable-lifecycle'
+        ports:
+        - containerPort: 9090
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: prometheus-config-volume
+          mountPath: /etc/prometheus/
+        - name: prometheus-storage-volume
+          mountPath: /prometheus/
+      volumes:
+      - name: prometheus-config-volume
+        configMap:
+          defaultMode: 420
+          name: prometheus-config
+      - name: prometheus-storage-volume
+        persistentVolumeClaim:
+          claimName: prometheus-storage
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-storage
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus
+  type: NodePort
+  ports:
+    - port: 9090
+      targetPort: 9090
