@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-nodeport-service
+  namespace: opensearch
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      protocol: TCP
+      port: 9200
+      targetPort: 9200
+  selector:
+    app.kubernetes.io/name: opensearch
+

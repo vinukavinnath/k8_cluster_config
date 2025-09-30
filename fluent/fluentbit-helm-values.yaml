@@ -1,0 +1,29 @@
+config:
+  outputs: |
+    [OUTPUT]
+        Name opensearch
+        Match kube.*
+        Host 192.168.56.150
+        Port 31813
+        Index fluent-bit
+        Type _doc
+        HTTP_User admin
+        HTTP_Passwd TestPassword&219
+        tls On
+        tls.verify Off
+        Suppress_Type_Name On
+        Retry_Limit False
+
+    [OUTPUT]
+        Name opensearch
+        Match host.*
+        Host 192.168.56.150
+        Port 31813
+        Index fluent-bit-node
+        Type _doc
+        HTTP_User admin
+        HTTP_Passwd TestPassword&219
+        tls On
+        tls.verify Off
+        Suppress_Type_Name On
+        Retry_Limit False

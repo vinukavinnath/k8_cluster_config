@@ -1,0 +1,12 @@
+config:
+  opensearch.yml: |-
+    cluster.name: opensearch-cluster
+    network.host: 0.0.0.0
+extraEnvs:
+  - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+    value: TestPassword&219
+replicas: 1
+persistence:
+  enabled: true
+  storageClass: local-path
+  size: 6Gi

@@ -1,0 +1,317 @@
+# OpenTelemetry Collector Helm Values for Log Collection
+# Configured for RKE2 cluster with OpenSearch v3.2
+
+# Deploy as DaemonSet - one pod per node to collect logs locally
+mode: "daemonset"
+
+# Preset configurations for log collection
+presets:
+  # Enable log collection from container stdout/stderr
+  logsCollection:
+    enabled: true
+    # Don't collect OTel Collector's own logs to avoid recursion
+    includeCollectorLogs: false
+    # Store checkpoints on host to prevent duplicate logs after restart
+    storeCheckpoints: true
+    # Maximum size for recombining multi-line logs (e.g., stack traces)
+    maxRecombineLogSize: 102400
+  
+  # Enable Kubernetes metadata enrichment
+  kubernetesAttributes:
+    enabled: true
+    # Extract all pod labels as resource attributes
+    extractAllPodLabels: true
+    # Extract all pod annotations as resource attributes
+    extractAllPodAnnotations: true
+  
+  # Disable other presets (not needed for log collection)
+  hostMetrics:
+    enabled: false
+  kubeletMetrics:
+    enabled: false
+  kubernetesEvents:
+    enabled: false
+  clusterMetrics:
+    enabled: false
+
+# OpenTelemetry Collector configuration
+config:
+  # Exporters - where to send the collected data
+  exporters:
+    # Debug exporter for troubleshooting (logs to collector's stdout)
+    debug:
+      verbosity: detailed
+      sampling_initial: 5
+      sampling_thereafter: 200
+    
+    # Elasticsearch exporter - compatible with OpenSearch
+    # OpenSearch is a fork of Elasticsearch, so we use the Elasticsearch exporter
+    elasticsearch:
+      endpoints:
+        - "http://192.168.56.150:31813"
+      
+      # Authentication using CloudID (alternative method)
+      # Using direct user/password instead of header
+      user: admin
+      password: "TestPassword&219"
+      
+      # Index configuration for logs - use static index name
+      logs_index: "k8s-logs"
+      
+      # Disable mapping mode to avoid compatibility issues
+      # mapping:
+      #   mode: "ecs"
+      
+      # Timeout settings
+      timeout: 90s
+      
+      # Disable TLS verification for HTTP
+      tls:
+        insecure_skip_verify: true
+  
+  # Extensions provide additional capabilities
+  extensions:
+    # Health check extension (required for liveness/readiness probes)
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+  
+  # Processors transform and enrich data
+  processors:
+    # Batch processor - groups logs before sending (improves performance)
+    batch:
+      timeout: 10s
+      send_batch_size: 1024
+      send_batch_max_size: 2048
+    
+    # Memory limiter - prevents OOM kills
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    
+    # Resource processor - adds consistent resource attributes
+    resource:
+      attributes:
+        - key: service.name
+          value: "k8s-cluster-logs"
+          action: upsert
+        - key: deployment.environment
+          value: "production"
+          action: upsert
+    
+    # Attributes processor - cleans up and standardizes attributes
+    attributes:
+      actions:
+        # Remove empty attributes
+        - action: delete
+          pattern: ^$
+        # Standardize log level field name
+        - key: level
+          from_attribute: severity
+          action: upsert
+  
+  # Receivers collect data from various sources
+  receivers:
+    # OTLP receiver - accepts logs from other OTLP sources (optional)
+    otlp:
+      protocols:
+        grpc:
+          endpoint: ${env:MY_POD_IP}:4317
+        http:
+          endpoint: ${env:MY_POD_IP}:4318
+    
+    # Filelog receiver configuration is added automatically by logsCollection preset
+    # It will tail /var/log/pods and /var/log/containers
+  
+  # Service defines the telemetry pipelines
+  service:
+    # Extensions to enable
+    extensions:
+      - health_check
+    
+    # Telemetry for the collector itself
+    telemetry:
+      logs:
+        level: "info"
+      metrics:
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: ${env:MY_POD_IP}
+                  port: 8888
+    
+    # Pipeline definitions
+    pipelines:
+      # Logs pipeline: receives -> processes -> exports
+      logs:
+        receivers:
+          - otlp
+          # filelog receiver added automatically by logsCollection preset
+        processors:
+          - memory_limiter
+          - k8sattributes  # Added by kubernetesAttributes preset
+          - resource
+          - attributes
+          - batch
+        exporters:
+          - elasticsearch
+          - debug  # Keep debug exporter for initial troubleshooting
+
+# Image configuration
+image:
+  repository: otel/opentelemetry-collector-contrib
+  pullPolicy: IfNotPresent
+  # Using contrib distribution for additional receivers/processors/exporters
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  automountServiceAccountToken: true
+
+# Cluster role for accessing Kubernetes API
+clusterRole:
+  create: true
+  annotations: {}
+  # Rules are added automatically by kubernetesAttributes preset
+
+# Resource limits - important for memory_limiter to work correctly
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+# Enable GOMEMLIMIT to prevent OOM kills
+useGOMEMLIMIT: true
+
+# Pod security context
+podSecurityContext:
+  # When storeCheckpoints is enabled, collector needs root to write to /var/lib/otelcol
+  runAsUser: 0
+  runAsGroup: 0
+  fsGroup: 0
+
+securityContext:
+  privileged: false
+  allowPrivilegeEscalation: true
+  readOnlyRootFilesystem: false
+  runAsNonRoot: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - DAC_OVERRIDE
+      - FOWNER
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8888"
+  prometheus.io/path: "/metrics"
+
+# Pod labels - use default chart labels
+podLabels: {}
+
+# Node selector - deploy on all nodes
+nodeSelector: {}
+
+# Tolerations - allow deployment on all nodes including master nodes
+tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  - operator: Exists
+    effect: NoExecute
+
+# Affinity rules
+affinity: {}
+
+# Host network is not required for log collection
+hostNetwork: false
+
+# Ports configuration
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
+    appProtocol: grpc
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
+  metrics:
+    enabled: true
+    containerPort: 8888
+    servicePort: 8888
+    protocol: TCP
+
+# Liveness probe
+livenessProbe:
+  httpGet:
+    path: /
+    port: 13133
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Readiness probe
+readinessProbe:
+  httpGet:
+    path: /
+    port: 13133
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Startup probe
+startupProbe:
+  httpGet:
+    path: /
+    port: 13133
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 12
+
+# Service configuration (optional for DaemonSet, but useful for metrics)
+service:
+  enabled: true
+  type: ClusterIP
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8888"
+
+# Rolling update strategy
+rollout:
+  rollingUpdate:
+    maxUnavailable: 1
+  strategy: RollingUpdate
+
+# Environment variables
+extraEnvs:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: K8S_POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+
+# Additional volumes (besides those added by logsCollection preset)
+extraVolumes: []
+
+# Additional volume mounts
+extraVolumeMounts: []

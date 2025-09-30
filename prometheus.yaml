@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,24 +12,23 @@ data:
     scrape_configs:
 
     # ===== Application Cluster Jobs ===== #  
-      - job_name: 'node-exporter-app-cluster'
-        static_configs:
-          - targets:
-            - '192.168.56.10:9100'    # app-master-node
-        metrics_path: /metrics
-        relabel_configs:
-         - target_label: cluster
-           replacement: 'application-cluster'
-      - job_name: 'kube-state-metrics-app-cluster'
-        static_configs:
-         - targets: 
-           - '192.168.56.10:32042'   # app-master-node
-        relabel_configs:
-         - target_label: cluster
-           replacement: 'application-cluster'
+    #   - job_name: 'node-exporter-app-cluster'
+    #     static_configs:
+    #       - targets:
+    #         - '192.168.56.10:9100'    # app-master-node
+    #     metrics_path: /metrics
+    #     relabel_configs:
+    #      - target_label: cluster
+    #        replacement: 'application-cluster'
+    #   - job_name: 'kube-state-metrics-app-cluster'
+    #     static_configs:
+    #      - targets: 
+    #        - '192.168.56.10:32042'   # app-master-node
+    #     relabel_configs:
+    #      - target_label: cluster
+    #        replacement: 'application-cluster'
 
     # ===== Monitoring Cluster Jobs ===== #
-
       - job_name: 'node-exporter-monitoring-cluster'
         kubernetes_sd_configs:
           - role: endpoints
@@ -37,10 +37,6 @@ data:
           - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
             regex: prometheus-node-exporter
             action: keep
-          # keep the kube-state-metric Service
-          #- source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
-          #  regex: kube-state-metrics
-          #  action: keep
           # (optional) keep only the namespace you used
           - source_labels: [__meta_kubernetes_namespace]
             regex: exporters
@@ -67,8 +63,8 @@ data:
           - target_label: cluster
             replacement: monitoring-cluster
         metrics_path: /metrics
-        scheme: http
-      
+        scheme: http  
+
         # cAdvisor for Monitoring Cluster (Kubernetes Service Discovery)
       - job_name: 'cadvisor-monitoring-cluster'
         kubernetes_sd_configs:
@@ -90,15 +86,15 @@ data:
           - target_label: cluster
             replacement: monitoring-cluster
 
-      # ===== Monitor Prometheus Itself ===== #       
-      - job_name: 'prometheus'
-        static_configs:
-          - targets:
-            - '192.168.56.150:30122' # monitoring cluster
-        metrics_path: /metrics
-        relabel_configs:
-          - target_label: cluster
-            replacement: 'monitoring-cluster'      
+      # # ===== Monitor Prometheus Itself ===== #       
+      # - job_name: 'prometheus'
+      #   static_configs:
+      #     - targets:
+      #       - '192.168.56.150:30122' # monitoring cluster
+      #   metrics_path: /metrics
+      #   relabel_configs:
+      #     - target_label: cluster
+      #       replacement: 'monitoring-cluster'      
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -176,3 +172,4 @@ spec:
   ports:
     - port: 9090
       targetPort: 9090
+      nodePort: 31100

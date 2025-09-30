@@ -1,0 +1,38 @@
+expose:
+  type: ingress
+  tls:
+    enabled: true
+    secretName: harbor-tls
+  ingress:
+    className: nginx
+    hosts:
+      core: rkemaster
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+externalURL: https://rkemaster
+
+harborAdminPassword: "TestPassword@219"
+
+persistence:
+  enabled: true
+  resourcePolicy: keep
+  persistentVolumeClaim:
+    registry: { storageClass: local-path, size: 5Gi }
+    database: { storageClass: local-path, size: 2Gi }
+    redis:    { storageClass: local-path, size: 1Gi }
+    trivy:    { storageClass: local-path, size: 2Gi }
+    jobservice: { storageClass: local-path, size: 2Gi }
+    chartmuseum:
+      enabled: false
+
+chartmuseum:
+  enabled: false
+
+trivy:
+  enabled: true
+
+notary:
+  enabled: false
+
