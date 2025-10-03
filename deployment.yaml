@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: elasticsearch
+  name: demo-deployment
 spec:
   replicas: 1
   selector:
@@ -13,5 +13,5 @@ spec:
         deployment: timelogger
     spec:
       containers:
-        - name: timelogger_c
+        - name: timelogger-container
           image: vinukavinnath/spring-logger-t:v1
