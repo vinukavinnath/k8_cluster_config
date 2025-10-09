@@ -1,0 +1,444 @@
+buildinfo:
+    command: otelcol-k8s
+    description: OpenTelemetry Collector for Kubernetes
+    version: 0.134.0
+receivers:
+    - name: filelog
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.134.0
+      stability:
+        logs: Beta
+        metrics: Undefined
+        traces: Undefined
+    - name: fluentforward
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.134.0
+      stability:
+        logs: Beta
+        metrics: Undefined
+        traces: Undefined
+    - name: hostmetrics
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.134.0
+      stability:
+        logs: Development
+        metrics: Beta
+        traces: Undefined
+    - name: httpcheck
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Alpha
+        traces: Undefined
+    - name: jaeger
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Undefined
+        traces: Beta
+    - name: journald
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Undefined
+        traces: Undefined
+    - name: k8s_cluster
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Undefined
+    - name: k8s_events
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Undefined
+        traces: Undefined
+    - name: k8sobjects
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver v0.134.0
+      stability:
+        logs: Beta
+        metrics: Undefined
+        traces: Undefined
+    - name: kubeletstats
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Beta
+        traces: Undefined
+    - name: otelarrow
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/otelarrowreceiver v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: otlp
+      module: go.opentelemetry.io/collector/receiver/otlpreceiver v0.134.0
+      stability:
+        logs: Stable
+        metrics: Stable
+        traces: Stable
+    - name: prometheus
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Beta
+        traces: Undefined
+    - name: receiver_creator
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Beta
+        traces: Alpha
+    - name: zipkin
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Undefined
+        traces: Beta
+processors:
+    - name: attributes
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: batch
+      module: go.opentelemetry.io/collector/processor/batchprocessor v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: cumulativetodelta
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Beta
+        traces: Undefined
+    - name: deltatocumulative
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Alpha
+        traces: Undefined
+    - name: deltatorate
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatorateprocessor v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Alpha
+        traces: Undefined
+    - name: filter
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Alpha
+        traces: Alpha
+    - name: groupbyattrs
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: groupbytrace
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbytraceprocessor v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Undefined
+        traces: Beta
+    - name: interval
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/intervalprocessor v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Alpha
+        traces: Undefined
+    - name: k8sattributes
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: logdedup
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/logdedupprocessor v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Undefined
+        traces: Undefined
+    - name: memory_limiter
+      module: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: metricstransform
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Beta
+        traces: Undefined
+    - name: probabilistic_sampler
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Undefined
+        traces: Beta
+    - name: redaction
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/redactionprocessor v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Alpha
+        traces: Beta
+    - name: remotetap
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/remotetapprocessor v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Alpha
+        traces: Alpha
+    - name: resource
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: resourcedetection
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: tail_sampling
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.134.0
+      stability:
+        logs: Undefined
+        metrics: Undefined
+        traces: Beta
+    - name: transform
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+exporters:
+    - name: debug
+      module: go.opentelemetry.io/collector/exporter/debugexporter v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Alpha
+        traces: Alpha
+    - name: file
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter v0.134.0
+      stability:
+        logs: Alpha
+        metrics: Alpha
+        traces: Alpha
+    - name: loadbalancing
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.134.0
+      stability:
+        logs: Beta
+        metrics: Development
+        traces: Beta
+    - name: nop
+      module: go.opentelemetry.io/collector/exporter/nopexporter v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: otelarrow
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/otelarrowexporter v0.134.0
+      stability:
+        logs: Beta
+        metrics: Beta
+        traces: Beta
+    - name: otlp
+      module: go.opentelemetry.io/collector/exporter/otlpexporter v0.134.0
+      stability:
+        logs: Stable
+        metrics: Stable
+        traces: Stable
+    - name: otlphttp
+      module: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.134.0
+      stability:
+        logs: Stable
+        metrics: Stable
+        traces: Stable
+connectors:
+    - name: count
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.134.0
+      stability:
+        logs-to-logs: Undefined
+        logs-to-metrics: Alpha
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Alpha
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Alpha
+        traces-to-traces: Undefined
+    - name: exceptions
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.134.0
+      stability:
+        logs-to-logs: Undefined
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Undefined
+        metrics-to-traces: Undefined
+        traces-to-logs: Alpha
+        traces-to-metrics: Alpha
+        traces-to-traces: Undefined
+    - name: failover
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/failoverconnector v0.134.0
+      stability:
+        logs-to-logs: Alpha
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Alpha
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Undefined
+        traces-to-traces: Alpha
+    - name: forward
+      module: go.opentelemetry.io/collector/connector/forwardconnector v0.134.0
+      stability:
+        logs-to-logs: Beta
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Beta
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Undefined
+        traces-to-traces: Beta
+    - name: otlpjson
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/otlpjsonconnector v0.134.0
+      stability:
+        logs-to-logs: Alpha
+        logs-to-metrics: Alpha
+        logs-to-traces: Alpha
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Undefined
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Undefined
+        traces-to-traces: Undefined
+    - name: roundrobin
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/roundrobinconnector v0.134.0
+      stability:
+        logs-to-logs: Beta
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Beta
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Undefined
+        traces-to-traces: Beta
+    - name: routing
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.134.0
+      stability:
+        logs-to-logs: Alpha
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Alpha
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Undefined
+        traces-to-traces: Alpha
+    - name: servicegraph
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector v0.134.0
+      stability:
+        logs-to-logs: Undefined
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Undefined
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Alpha
+        traces-to-traces: Undefined
+    - name: spanmetrics
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.134.0
+      stability:
+        logs-to-logs: Undefined
+        logs-to-metrics: Undefined
+        logs-to-traces: Undefined
+        metrics-to-logs: Undefined
+        metrics-to-metrics: Undefined
+        metrics-to-traces: Undefined
+        traces-to-logs: Undefined
+        traces-to-metrics: Alpha
+        traces-to-traces: Undefined
+extensions:
+    - name: ack
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/ackextension v0.134.0
+      stability:
+        extension: Alpha
+    - name: basicauth
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.134.0
+      stability:
+        extension: Beta
+    - name: bearertokenauth
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/bearertokenauthextension v0.134.0
+      stability:
+        extension: Beta
+    - name: cgroupruntime
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/cgroupruntimeextension v0.134.0
+      stability:
+        extension: Alpha
+    - name: file_storage
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.134.0
+      stability:
+        extension: Beta
+    - name: headers_setter
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/headerssetterextension v0.134.0
+      stability:
+        extension: Alpha
+    - name: health_check
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.134.0
+      stability:
+        extension: Unmaintained
+    - name: host_observer
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.134.0
+      stability:
+        extension: Beta
+    - name: http_forwarder
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/httpforwarderextension v0.134.0
+      stability:
+        extension: Beta
+    - name: k8s_leader_elector
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.134.0
+      stability:
+        extension: Development
+    - name: k8s_observer
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver v0.134.0
+      stability:
+        extension: Alpha
+    - name: oauth2client
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/oauth2clientauthextension v0.134.0
+      stability:
+        extension: Beta
+    - name: oidc
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/oidcauthextension v0.134.0
+      stability:
+        extension: Beta
+    - name: opamp
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension v0.134.0
+      stability:
+        extension: Alpha
+    - name: pprof
+      module: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.134.0
+      stability:
+        extension: Beta
+    - name: zpages
+      module: go.opentelemetry.io/collector/extension/zpagesextension v0.134.0
+      stability:
+        extension: Beta
+providers:
+    - scheme: https
+      module: go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.40.0
+    - scheme: yaml
+      module: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.40.0
+    - scheme: env
+      module: go.opentelemetry.io/collector/confmap/provider/envprovider v1.40.0
+    - scheme: file
+      module: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.40.0
+    - scheme: http
+      module: go.opentelemetry.io/collector/confmap/provider/httpprovider v1.40.0
