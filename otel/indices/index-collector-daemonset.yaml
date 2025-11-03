@@ -1,0 +1,248 @@
+# ============================================================
+# 1) Gateway (Deployment) that receives OTLP and writes to OpenSearch
+# ============================================================
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-gateway
+  namespace: otel
+spec:
+  mode: deployment
+  replicas: 1
+  serviceAccount: otelcol-logs
+  image: otel/opentelemetry-collector-contrib:0.137.0
+  ports:
+    - { name: otlp-grpc, port: 4317 }
+    - { name: otlp-http, port: 4318 }
+    - { name: healthz, port: 13133 }
+    - { name: metrics, port: 8888 }
+  config:
+    extensions:
+      health_check: { endpoint: 0.0.0.0:13133 }
+      basicauth/os:
+        client_auth:
+          username: admin
+          password: "TestPassword&219"
+
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+          http: {}
+
+    processors:
+      memory_limiter:
+        check_interval: 2s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+
+      # Build deterministic, monthly index names
+      transform/indexkey:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            statements:
+              # Workload: deployment → statefulset → daemonset → pod → "unknown"
+              - set(attributes["workload.name"], resource.attributes["k8s.deployment.name"])
+              - set(attributes["workload.name"], resource.attributes["k8s.statefulset.name"]) where Len(attributes["workload.name"]) == 0
+              - set(attributes["workload.name"], resource.attributes["k8s.daemonset.name"])   where Len(attributes["workload.name"]) == 0
+              - set(attributes["workload.name"], resource.attributes["k8s.pod.name"])         where Len(attributes["workload.name"]) == 0
+              - set(attributes["workload.name"], "unknown")                                   where Len(attributes["workload.name"]) == 0
+
+              # Namespace with safe default
+              - set(attributes["ns.name"], resource.attributes["k8s.namespace.name"])
+              - set(attributes["ns.name"], "default") where Len(attributes["ns.name"]) == 0
+
+              # Seed date defaults (prevents %!s(<nil>) if anything is missing)
+              - set(attributes["index.year"],  "0000")
+              - set(attributes["index.month"], "00")
+              # Derive from the record's timestamp
+              - set(attributes["index.year"],  FormatTime(time_unix_nano, "2006"))
+              - set(attributes["index.month"], FormatTime(time_unix_nano, "01"))
+
+              # Final key: logs-<workload>-<namespace>-YYYY-MM
+              - set(attributes["index.key"], Format("logs-%s-%s-%s-%s", [
+                attributes["workload.name"],
+                attributes["ns.name"],
+                attributes["index.year"],
+                attributes["index.month"]]))
+
+      resource:
+        attributes:
+          - { key: k8s.cluster.name, value: "rke2", action: upsert }
+          - { key: deployment.environment, value: "prod", action: upsert }
+
+      batch:
+        send_batch_size: 1000
+        send_batch_max_size: 4000
+        timeout: 5s
+
+    exporters:
+      opensearch:
+        http:
+          endpoint: https://192.168.56.150:31813
+          tls: { insecure_skip_verify: true }
+          auth: { authenticator: basicauth/os }
+          compression: gzip
+          timeout: 15s
+        # RAW indices (NOT data streams)
+        logs_index: "%{index.key}"
+        logs_index_fallback: "logs-unknown"
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 5m
+        sending_queue:
+          enabled: true
+          num_consumers: 4
+          queue_size: 12000
+
+      debug:
+        verbosity: detailed
+
+    service:
+      extensions: [health_check, basicauth/os]
+      telemetry:
+        logs: { level: info }
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, transform/indexkey, resource, batch]
+          exporters: [opensearch, debug]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-gateway
+  namespace: otel
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: otel-gateway
+    app.kubernetes.io/name: opentelemetry-collector
+  ports:
+    - { name: otlp-grpc, port: 4317, targetPort: 4317 }
+    - { name: otlp-http, port: 4318, targetPort: 4318 }
+    - { name: healthz, port: 13133, targetPort: 13133 }
+
+---
+# ============================================================
+# 2) Node agent (DaemonSet) that tails files and sends to gateway via OTLP
+# ============================================================
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: logs-agent
+  namespace: otel
+spec:
+  mode: daemonset
+  image: otel/opentelemetry-collector-contrib:0.137.0
+  serviceAccount: otelcol-logs
+  volumeMounts:
+    - { name: varlog, mountPath: /var/log, readOnly: true }
+    - {
+        name: varlibdockercontainers,
+        mountPath: /var/lib/docker/containers,
+        readOnly: true,
+      }
+    - { name: machineid, mountPath: /etc/machine-id, readOnly: true }
+  volumes:
+    - { name: varlog, hostPath: { path: /var/log } }
+    - {
+        name: varlibdockercontainers,
+        hostPath: { path: /var/lib/docker/containers },
+      }
+    - { name: machineid, hostPath: { path: /etc/machine-id } }
+  env:
+    - name: K8S_NODE_NAME
+      valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+  ports:
+    - { name: healthz, port: 13133 }
+    - { name: metrics, port: 8888 }
+  config:
+    extensions:
+      health_check: { endpoint: 0.0.0.0:13133 }
+
+    receivers:
+      filelog/k8s:
+        include:
+          - /var/log/containers/*.log
+        exclude:
+          - /var/log/containers/*_otel_* # skip our own collectors
+          - /var/log/containers/*_kube-system_*.log # (tune this to your needs)
+        start_at: end
+        include_file_path: true
+        resource:
+          k8s.node.name: ${K8S_NODE_NAME}
+        operators:
+          - type: regex_parser
+            regex: "^(?P<ts>[^ ]+) (?P<stream>stdout|stderr) (?P<flags>[^ ]*) (?P<body>.*)$"
+            timestamp:
+              parse_from: attributes.ts
+              layout_type: gotime
+              layout: "2006-01-02T15:04:05.999999999Z07:00"
+          # NOTE: Your current image rejects the multiline operator. After upgrading the collector
+          # to a build that supports stanza multiline, you can add:
+          # - type: multiline
+          #   match_type: after
+          #   line_start_pattern: '^(?!\s|at\s)'
+
+    processors:
+      memory_limiter:
+        check_interval: 2s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+
+      # For filelog, k8sattributes resolves from file path → reliable attribution
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.container.name
+            - k8s.deployment.name
+            - k8s.statefulset.name
+            - k8s.daemonset.name
+            - k8s.node.name
+          labels:
+            - { key: "*" }
+          annotations:
+            - { key: "*" }
+
+      batch:
+        send_batch_size: 1000
+        send_batch_max_size: 4000
+        timeout: 5s
+
+    exporters:
+      # Send to the gateway via OTLP/gRPC
+      otlp:
+        endpoint: otel-gateway.otel.svc.cluster.local:4317
+        tls: { insecure: true }
+        compression: gzip
+        timeout: 10s
+        sending_queue:
+          enabled: true
+          num_consumers: 4
+          queue_size: 8000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 5m
+
+      debug:
+        verbosity: basic
+
+    service:
+      extensions: [health_check]
+      telemetry:
+        logs: { level: info }
+      pipelines:
+        logs:
+          receivers: [filelog/k8s]
+          processors: [memory_limiter, k8sattributes, batch]
+          exporters: [otlp, debug]

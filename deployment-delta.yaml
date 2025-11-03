@@ -1,18 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: gemma-timelogger
+  name: delta-timelogger
   namespace: alpha
+  labels:
+    team: echannel
+    retention: 6m
 spec:
   replicas: 1
   selector:
     matchLabels:
-      deployment: gemma
+      deployment: delta
   template:
     metadata:
       labels:
-        deployment: gemma
+        deployment: delta
     spec:
       containers:
-        - name: gemma-timelogger-container
+        - name: delta-timelogger-container
           image: vinukavinnath/spring-logger-t:v1

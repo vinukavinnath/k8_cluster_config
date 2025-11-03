@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: gemma-timelogger
-  namespace: alpha
+  name: default-timelogger
+  namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      deployment: gemma
+      deployment: default
   template:
     metadata:
       labels:
-        deployment: gemma
+        deployment: default
     spec:
       containers:
-        - name: gemma-timelogger-container
+        - name: default-timelogger-container
           image: vinukavinnath/spring-logger-t:v1

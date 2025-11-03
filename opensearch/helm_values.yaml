@@ -2,10 +2,17 @@ config:
   opensearch.yml: |-
     cluster.name: opensearch-cluster
     network.host: 0.0.0.0
+    s3.client.default.region: ap-south-1
 extraEnvs:
   - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
     value: TestPassword&219
 replicas: 1
+plugins:
+  enabled: true
+  installList:
+    - "repository-s3"
+keystore:
+  - secretName: aws-credentials
 persistence:
   enabled: true
   storageClass: local-path

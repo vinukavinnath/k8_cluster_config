@@ -1,0 +1,34 @@
+{
+    "Rules": [
+        {
+            "ID": "Expire-6m",
+            "Status": "Enabled",
+            "Filter": {
+                "Prefix": "6m/"
+            },
+            "Expiration": {
+                "Days": 1
+            }
+        },
+        {
+            "ID": "Expire-1y",
+            "Status": "Enabled",
+            "Filter": {
+                "Prefix": "1y/"
+            },
+            "Expiration": {
+                "Days": 2
+            }
+        },
+        {
+            "ID": "Expire-2y",
+            "Status": "Enabled",
+            "Filter": {
+                "Prefix": "2y/"
+            },
+            "Expiration": {
+                "Days": 3
+            }
+        }
+    ]
+}

@@ -1,0 +1,103 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: logs-otlp
+  namespace: otel
+spec:
+  mode: deployment
+  replicas: 1
+  serviceAccount: otelcol-logs
+  image: otel/opentelemetry-collector-contrib:0.137.0
+  ports:
+    - name: otlp-grpc
+      port: 4317
+    - name: otlp-http
+      port: 4318
+    - name: healthz
+      port: 13133
+    - name: prometheus
+      port: 8888
+
+  # config is an OBJECT (no pipe)
+  config:
+    extensions:
+      basicauth/client:
+        client_auth:
+          username: admin
+          password: "TestPassword&219"
+
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+          http: {}
+
+    processors:
+      memory_limiter:
+        check_interval: 2s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      batch:
+        send_batch_size: 512
+        send_batch_max_size: 2048
+        timeout: 2s
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        pod_association:
+          - sources: [{ from: connection }]
+          - sources: [{ from: resource_attribute, name: k8s.pod.uid }]
+          - sources: [{ from: resource_attribute, name: k8s.pod.ip }]
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.node.name
+            - k8s.deployment.name
+            - k8s.statefulset.name
+            - k8s.daemonset.name
+      transform/indexkey:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            statements:
+              # 1) Choose workload name from RESOURCE attributes:
+              - set(attributes["workload.name"], resource.attributes["k8s.deployment.name"])
+              - set(attributes["workload.name"], resource.attributes["k8s.statefulset.name"]) where Len(attributes["workload.name"]) == 0
+              - set(attributes["workload.name"], resource.attributes["k8s.daemonset.name"])   where Len(attributes["workload.name"]) == 0
+              - set(attributes["workload.name"], resource.attributes["k8s.pod.name"])         where Len(attributes["workload.name"]) == 0
+              # 2) Build final index key: logs-<workload>-<namespace>
+              - set(attributes["index.key"], Format("logs-%s-%s", [attributes["workload.name"], resource.attributes["k8s.namespace.name"]]))
+      resource:
+        attributes:
+          - key: k8s.cluster.name
+            value: "rke2"
+            action: upsert
+          - key: deployment.environment
+            value: "prod"
+            action: upsert
+
+    exporters:
+      opensearch:
+        http:
+          endpoint: https://192.168.56.150:31813 # NodePort service of Opensaerch
+          tls:
+            insecure_skip_verify: true
+          auth:
+            authenticator: basicauth/client
+        logs_index: "%{index.key}" # we already prefixed with "logs-" above
+        logs_index_fallback: "logs-unknown" # safety net
+      debug:
+        verbosity: detailed
+
+    service:
+      extensions: [basicauth/client]
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors:
+            [memory_limiter, k8sattributes, transform/indexkey, resource, batch]
+          exporters: [opensearch, debug]

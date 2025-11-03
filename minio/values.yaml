@@ -1,0 +1,108 @@
+# ✅ Minimal, single-node-friendly values.yaml for MinIO on rke2 (dev)
+nameOverride: ""
+fullnameOverride: ""
+clusterDomain: cluster.local
+
+image:
+  repository: quay.io/minio/minio
+  tag: RELEASE.2024-12-18T13-15-44Z
+  pullPolicy: IfNotPresent
+
+mcImage:
+  repository: quay.io/minio/mc
+  tag: RELEASE.2024-11-21T17-21-54Z
+  pullPolicy: IfNotPresent
+
+# Single-node: use standalone
+mode: standalone
+drivesPerNode: 1
+replicas: 1
+pools: 1
+
+# Set admin creds via a secret in real life; for quick dev you can inline (not recommended)
+rootUser: "rootuser"
+rootPassword: "rootpass123" # use an existingSecret in real envs
+
+mountPath: "/export"
+bucketRoot: "" # leave default
+
+tls:
+  enabled: false # enable with a cert when you add ingress/TLS later
+
+persistence:
+  enabled: true
+  storageClass: "local-path" # rke2 default; adjust if you use another SC
+  accessMode: ReadWriteOnce
+  size: 5Gi # leave some disk for OS/kube; you have ~50Gi total
+  subPath: ""
+
+# Expose via NodePort (works fine on a single node). Switch to Ingress later if you prefer.
+service:
+  type: NodePort
+  port: "9000"
+  nodePort: 32000
+  annotations: {}
+  externalTrafficPolicy: Cluster
+
+consoleService:
+  type: NodePort
+  port: "9001"
+  nodePort: 32001
+  annotations: {}
+  externalTrafficPolicy: Cluster
+
+# 🚦 Resource sizing to fit 5 CPU / 10Gi RAM box
+resources:
+  requests:
+    cpu: "1"
+    memory: "2Gi"
+  limits:
+    cpu: "4"
+    memory: "6Gi"
+
+# Keep security context; works with local-path
+securityContext:
+  enabled: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: "OnRootMismatch"
+
+containerSecurityContext:
+  readOnlyRootFilesystem: false
+
+# Don’t auto-create test users in dev unless you need them
+users: []
+
+# Create buckets automatically if you want (optional)
+buckets: []
+#  - name: dev
+#    policy: none
+#    purge: false
+#    versioning: true
+
+# Prometheus (optional; enable only if you already run kube-prometheus-stack)
+metrics:
+  serviceMonitor:
+    enabled: false
+
+# Leave ingress off for now; easy to add later with TLS
+ingress:
+  enabled: false
+consoleIngress:
+  enabled: false
+
+# Jobs modest memory so they don't steal RAM
+makePolicyJob:
+  resources: { requests: { memory: 128Mi } }
+makeUserJob:
+  resources: { requests: { memory: 128Mi } }
+makeServiceAccountJob:
+  resources: { requests: { memory: 128Mi } }
+makeBucketJob:
+  resources: { requests: { memory: 128Mi } }
+customCommandJob:
+  resources: { requests: { memory: 128Mi } }
+postJob:
+  securityContext:
+    enabled: false

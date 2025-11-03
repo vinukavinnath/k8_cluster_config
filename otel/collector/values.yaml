@@ -1,0 +1,135 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-collector
+  namespace: otel
+spec:
+  mode: deployment
+  replicas: 1
+  serviceAccount: otelcol-logs
+  image: otel/opentelemetry-collector-contrib:0.137.0
+  env:
+    - name: AWS_ACCESS_KEY_ID
+      value: "rootuser"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "rootpass123"
+  ports:
+    - name: otlp-grpc
+      port: 4317
+    - name: otlp-http
+      port: 4318
+    - name: healthz
+      port: 13133
+    - name: prometheus
+      port: 8888
+  config:
+    extensions:
+      basicauth/client:
+        client_auth:
+          username: admin
+          password: "TestPassword&219"
+
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+          http: {}
+
+    processors:
+      memory_limiter:
+        check_interval: 2s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+
+      batch:
+        send_batch_size: 512
+        send_batch_max_size: 2048
+        timeout: 2s
+
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        pod_association:
+          - sources: [{ from: connection }]
+          - sources: [{ from: resource_attribute, name: k8s.pod.uid }]
+          - sources: [{ from: resource_attribute, name: k8s.pod.ip }]
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.node.name
+            - k8s.deployment.name
+          labels:
+            - key: team
+              from: deployment
+              tag_name: deployment.team
+            - key: retention
+              from: deployment
+              tag_name: deployment.retention
+
+      # Build index name: logs-<workload>-<namespace>
+      transform/indexkey:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            statements:
+              - set(attributes["deployment.name"], resource.attributes["k8s.deployment.name"])
+              - set(attributes["namespace.name"], resource.attributes["k8s.namespace.name"])
+              - set(attributes["index.key"],Format("logs-%s-%s",[attributes["deployment.name"],attributes["namespace.name"]]))
+      transform/setFolders:
+        log_statements:
+          - context: resource
+            statements:
+              - set(resource.attributes["s3_folder"], Format("%s/%s", [resource.attributes["deployment.retention"], resource.attributes["k8s.deployment.name"]]))
+      resource:
+        attributes:
+          - key: k8s.cluster.name
+            value: "observability-cluster"
+            action: upsert
+          - key: deployment.environment
+            value: "prod"
+            action: upsert
+
+    exporters:
+      opensearch:
+        http:
+          endpoint: https://192.168.56.150:31813
+          tls:
+            insecure_skip_verify: true
+          auth:
+            authenticator: basicauth/client
+        logs_index: "%{index.key}"
+      awss3/logs:
+        s3uploader:
+          region: "us-east-1"
+          s3_bucket: "otel-logs"
+          s3_base_prefix: "logs"
+          s3_prefix: "logs/default"
+          endpoint: "http://192.168.56.150:32000"
+          s3_force_path_style: true
+          disable_ssl: true
+          compression: "gzip"
+          s3_partition_format: "%Y/%m/%d/%H"
+          s3_partition_timezone: "Asia/Colombo"
+        resource_attrs_to_s3:
+          s3_prefix: "s3_folder"
+      debug:
+        verbosity: detailed
+    service:
+      extensions: [basicauth/client]
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors:
+            [
+              memory_limiter,
+              k8sattributes,
+              transform/indexkey,
+              transform/setFolders,
+              resource,
+              batch,
+            ]
+          exporters: [opensearch, awss3/logs, debug]
