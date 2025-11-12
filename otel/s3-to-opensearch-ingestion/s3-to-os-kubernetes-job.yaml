@@ -1,0 +1,91 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingest-timelogger-2025
+  namespace: otel
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: pipeline-template
+          configMap:
+            name: dp-pipeline-otel-logs
+        - name: pipeline-out
+          emptyDir: {}
+      initContainers:
+        - name: render-pipeline
+          image: alpine:3.20
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              apk add --no-cache gettext
+              echo "Rendering pipeline configuration..."
+              envsubst < /tmpl/pipelines.tmpl.yaml > /out/pipelines.yaml
+              echo "===== Rendered pipelines.yaml ====="
+              cat /out/pipelines.yaml
+              echo "==================================="
+              if [ ! -s /out/pipelines.yaml ]; then
+                echo "ERROR: Rendered pipeline is empty!"
+                exit 1
+              fi
+          env:
+            - name: BUCKET
+              value: "otel-logs"
+            - name: PREFIX
+              value: "logs/6m/alpha-timelogger/2025/11/11/14/01"
+            - name: OS_HOST
+              value: "https://192.168.56.150:31813"
+            - name: DEPLOYMENT
+              value: "timelogger"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-minio-creds
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-minio-creds
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: OS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-opensearch-creds
+                  key: OS_USERNAME
+            - name: OS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-opensearch-creds
+                  key: OS_PASSWORD
+          volumeMounts:
+            - name: pipeline-template
+              mountPath: /tmpl
+            - name: pipeline-out
+              mountPath: /out
+      containers:
+        - name: data-prepper
+          image: opensearchproject/data-prepper:2.12.2
+          env:
+            # AWS credentials
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-minio-creds
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-minio-creds
+                  key: AWS_SECRET_ACCESS_KEY
+            # MinIO endpoint - try this first
+            - name: AWS_ENDPOINT_URL_S3
+              value: "http://192.168.56.150:32000"
+            - name: AWS_REGION
+              value: "us-east-1"
+          volumeMounts:
+            - name: pipeline-out
+              mountPath: /usr/share/data-prepper/pipelines

@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dp-pipeline-template
+  namespace: otel
+data:
+  pipelines.tmpl.yaml: |
+    s3_to_opensearch:
+      workers: 2
+      delay: 5000
+      source:
+        s3:
+          compression: "gzip"
+          codec:
+            json: {}
+          aws:
+            region: "us-east-1"
+          scan:
+            buckets:
+              - bucket:
+                  name: "${BUCKET}"
+                  filter:
+                    include_prefix:
+                      - "${PREFIX}"
+          disable_bucket_ownership_validation: true
+
+      processor:
+        # Parse and structure the data
+        - date:
+            match:
+              - key: "@timestamp"
+                patterns:
+                  - "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+            destination: "@timestamp"
+            source_timezone: "UTC"
+            destination_timezone: "Asia/Colombo"
+            
+        # Add deployment metadata
+        - add_entries:
+            entries:
+              - key: "attributes/deployment.name"
+                value: "${DEPLOYMENT}"
+                overwrite_if_key_exists: true
+              - key: "attributes/index.key"
+                value: "logs-${DEPLOYMENT}"
+                overwrite_if_key_exists: true
+              - key: "attributes/data_stream/type"
+                value: "logs"
+                overwrite_if_key_exists: true
+              - key: "attributes/data_stream/dataset"
+                value: "default"
+                overwrite_if_key_exists: false
+              - key: "attributes/data_stream/namespace"
+                value: "namespace"
+                overwrite_if_key_exists: false
+                
+        # Rename/move fields to match your structure
+        - rename_keys:
+            entries:
+              - from_key: "observedTimestamp"
+                to_key: "observedTimestamp"
+                overwrite_if_to_key_exists: true
+              - from_key: "severityText"
+                to_key: "severity/text"
+                overwrite_if_to_key_exists: true
+              - from_key: "severityNumber"
+                to_key: "severity/number"
+                overwrite_if_to_key_exists: true
+                
+        # Delete unwanted fields (optional)
+        - delete_entries:
+            with_keys:
+              - "temporary_field"      
+      sink:
+        - opensearch:
+            hosts:
+              - "${OS_HOST}"
+            username: "${OS_USERNAME}"
+            password: "${OS_PASSWORD}"
+            index: "dataprepper-${DEPLOYMENT}-%{yyyy-MM-dd-HH}"
+            index_type: "custom"
+            bulk_size: 5000
+            flush_timeout: 30000
+            insecure: true
+            aws_sigv4: false

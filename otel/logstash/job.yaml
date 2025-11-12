@@ -1,0 +1,100 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: logstash-s3-ingest
+  namespace: otel
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: logstash-ingest-sa
+      volumes:
+        - name: config
+          configMap:
+            name: logstash-config
+        - name: pipeline-dir
+          emptyDir: {}
+      initContainers:
+        - name: render-config
+          image: alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              apk add --no-cache gettext \
+                && envsubst < /config/logstash.conf > /pipeline/logstash.conf \
+                && cp /config/logstash.yml /pipeline/logstash.yml \
+                && echo "Rendered pipeline:" && cat /pipeline/logstash.conf
+          env:
+            - name: BUCKET
+              value: "otel-logs"
+            - name: PREFIX
+              value: "logs/6m/alpha-timelogger/2025/11/06/"
+            - name: MINIO_ENDPOINT
+              value: "http://192.168.56.150:32000"
+            - name: OS_HOST
+              value: "https://192.168.56.150:31813"
+            - name: OS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-opensearch-creds
+                  key: OS_USERNAME
+            - name: OS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-opensearch-creds
+                  key: OS_PASSWORD
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-minio-creds
+                  key: AWS_ACCESS_KEY_ID
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-minio-creds
+                  key: AWS_SECRET_ACCESS_KEY
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: pipeline-dir
+              mountPath: /pipeline
+      containers:
+        - name: logstash
+          image: docker.elastic.co/logstash/logstash:9.1.3
+          env:
+            - name: BUCKET
+              value: "otel-logs"
+            - name: PREFIX
+              value: "logs/6m/alpha-timelogger/2025/11/06/"
+            - name: MINIO_ENDPOINT
+              value: "http://192.168.56.150:32000"
+            - name: OS_HOST
+              value: "https://192.168.56.150:31813"
+            - name: OS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-opensearch-creds
+                  key: OS_USERNAME
+            - name: OS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-opensearch-creds
+                  key: OS_PASSWORD
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-minio-creds
+                  key: AWS_ACCESS_KEY_ID
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ingest-minio-creds
+                  key: AWS_SECRET_ACCESS_KEY
+          volumeMounts:
+            - name: pipeline-dir
+              mountPath: /usr/share/logstash/pipeline

@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: otel
+data:
+  logstash.conf: |
+    input {
+      s3 {
+        bucket => "${BUCKET}"
+        region => "us-east-1"
+        access_key_id => "${S3_ACCESS_KEY}"
+        secret_access_key => "${S3_SECRET_KEY}"
+        endpoint => "${MINIO_ENDPOINT}"
+        prefix => "${PREFIX}"
+        codec => "json"
+        interval => 60
+        sincedb_path => "/var/lib/logstash/sincedb_otlp"
+        additional_settings => {
+          "force_path_style" => true
+        }
+      }
+    }
+
+    filter {
+      json {
+        source => "message"
+        target => "otlp"
+      }
+
+      split {
+        field => "[otlp][resourceLogs]"
+      }
+
+      ruby {
+        code => '
+          resource_logs = event.get("[otlp][resourceLogs]")
+          if resource_logs && resource_logs["resource"] && resource_logs["resource"]["attributes"]
+            resource_attrs = {}
+            resource_logs["resource"]["attributes"].each do |attr|
+              key = attr["key"]
+              value = attr["value"]
+              if value["stringValue"]
+                resource_attrs[key] = value["stringValue"]
+              elsif value["intValue"]
+                resource_attrs[key] = value["intValue"].to_s
+              elsif value["arrayValue"] && value["arrayValue"]["values"]
+                arr = value["arrayValue"]["values"].map { |v| v["stringValue"] }
+                resource_attrs[key] = arr.to_json
+              end
+            end
+            event.set("[resource]", resource_attrs)
+          end
+        '
+      }
+
+      split {
+        field => "[otlp][resourceLogs][scopeLogs]"
+      }
+
+      ruby {
+        code => '
+          scope_logs = event.get("[otlp][resourceLogs][scopeLogs]")
+          if scope_logs && scope_logs["scope"]
+            event.set("[instrumentationScope][name]", scope_logs["scope"]["name"])
+          end
+        '
+      }
+
+      split {
+        field => "[otlp][resourceLogs][scopeLogs][logRecords]"
+      }
+
+      ruby {
+        code => '
+          log_record = event.get("[otlp][resourceLogs][scopeLogs][logRecords]")
+          if log_record
+            if log_record["body"] && log_record["body"]["stringValue"]
+              event.set("body", log_record["body"]["stringValue"])
+            end
+            if log_record["timeUnixNano"]
+              timestamp_nanos = log_record["timeUnixNano"].to_i
+              timestamp_millis = timestamp_nanos / 1_000_000
+              event.set("@timestamp", Time.at(timestamp_millis / 1000.0).utc)
+            end
+            if log_record["observedTimeUnixNano"]
+              observed_nanos = log_record["observedTimeUnixNano"].to_i
+              observed_millis = observed_nanos / 1_000_000
+              event.set("observedTimestamp",
+                        Time.at(observed_millis / 1000.0).utc.iso8601(9))
+            end
+            if log_record["severityText"]
+              event.set("[severity][text]", log_record["severityText"])
+            end
+            if log_record["severityNumber"]
+              event.set("[severity][number]", log_record["severityNumber"])
+            end
+            if log_record["traceId"]
+              event.set("traceId", log_record["traceId"])
+            end
+            if log_record["spanId"]
+              event.set("spanId", log_record["spanId"])
+            end
+            if log_record["attributes"]
+              attrs = {}
+              log_record["attributes"].each do |attr|
+                key = attr["key"]
+                value = attr["value"]
+                if value["stringValue"]
+                  attrs[key] = value["stringValue"]
+                end
+              end
+              event.set("[attributes]", attrs)
+            end
+          end
+        '
+      }
+
+      mutate {
+        add_field => {
+          "[attributes][data_stream][dataset]" => "default"
+          "[attributes][data_stream][namespace]" => "namespace"
+          "[attributes][data_stream][type]" => "record"
+        }
+      }
+
+      mutate {
+        remove_field => ["otlp", "message"]
+      }
+    }
+
+    output {
+      opensearch {
+        hosts => ["${OS_HOST}"]
+        user => "${OS_USERNAME}"
+        password => "${OS_PASSWORD}"
+        index => ".ds-logs-%{[resource][k8s.deployment.name]}-%{[resource][k8s.namespace.name]}-%{+YYYY.MM.dd}"
+        ssl_certificate_verification => false
+      }
+      #stdout { codec => rubydebug }
+    }
+  logstash.yml: |
+    path.config: /usr/share/logstash/pipeline
+    path.logs: /usr/share/logstash/logs

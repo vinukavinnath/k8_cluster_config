@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dp-pipeline-otel-logs
+  namespace: otel
+data:
+  pipelines.tmpl.yaml: |
+    s3_to_opensearch:
+      workers: 2
+      delay: 5000
+      
+      source:
+        s3:
+          compression: "gzip"
+          codec:
+            json: {}
+          aws:
+            region: "us-east-1"
+          scan:
+            buckets:
+              - bucket:
+                  name: "${BUCKET}"
+                  filter:
+                    include_prefix:
+                      - "${PREFIX}"
+          disable_bucket_ownership_validation: true
+          # acknowledgments: true
+      
+      processor:
+        - list_to_map:
+            source: "resource/attributes"
+            key: "key"
+            value_key: "value"
+            flatten: true
+        
+        - date:
+            match:
+              - key: "scopeLogs[0].logRecords[0].timeUnixNano"
+                patterns: ["epoch_nano"]
+            destination: "@timestamp"
+            destination_timezone: "Asia/Colombo"
+            output_format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+        - date:
+            from_time_received: true
+            destination: "@timestamp"
+
+      sink:
+        - opensearch:
+            hosts:
+              - "${OS_HOST}"
+            username: "${OS_USERNAME}"
+            password: "${OS_PASSWORD}"
+            # Dynamic index with Asia/Colombo timezone
+            index: "dataprepper-${DEPLOYMENT}-%{yyyy-MM-dd-HH}"
+            index_type: "custom"
+            bulk_size: 5000
+            flush_timeout: 30000
+            insecure: true
+            aws_sigv4: false
+            max_retries: 3
