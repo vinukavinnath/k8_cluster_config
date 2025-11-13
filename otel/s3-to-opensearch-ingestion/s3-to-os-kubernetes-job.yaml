@@ -33,14 +33,17 @@ spec:
                 exit 1
               fi
           env:
+            # Need to configure before ingestion
+            # ------------------------------------
+            - name: PREFIX
+              value: "logs/6m/alpha-timelogger/2025/11/12/10"
+            - name: INDEX
+              value: "logs-6m-alpha-timelogger-2025-11-12-10"
+            # ------------------------------------
             - name: BUCKET
               value: "otel-logs"
-            - name: PREFIX
-              value: "logs/6m/alpha-timelogger/2025/11/11/14/01"
             - name: OS_HOST
               value: "https://192.168.56.150:31813"
-            - name: DEPLOYMENT
-              value: "timelogger"
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
